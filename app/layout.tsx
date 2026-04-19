@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Signal — Deep Research for GTM",
+  title: "Signal — Know When to Strike",
   description:
-    "Describe your ideal prospects in plain English. Get a sourced, ranked list with personalized outreach in under 60 seconds. Powered by Crustdata.",
+    "Watch your target accounts for buying signals: fresh funding, new executives, growth spikes, champion moves. Strike the moment a signal fires. Powered by Crustdata.",
 };
 
 export default function RootLayout({

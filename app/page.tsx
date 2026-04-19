@@ -1,54 +1,67 @@
 "use client";
 
-import { Database, Github, Sparkles } from "lucide-react";
-import { useRef, useState } from "react";
+import { Activity, Database, Play, Sparkles } from "lucide-react";
+import { useState } from "react";
 
-import { ProspectCard } from "@/components/ProspectCard";
-import { QueryInput } from "@/components/QueryInput";
-import {
-  ReasoningTrace,
-  traceEntryFromEvent,
-  type TraceEntry,
-} from "@/components/ReasoningTrace";
-import type { PipelineEvent } from "@/lib/pipeline";
-import type { Prospect } from "@/lib/types";
+import { EmptySignalState, SignalCard } from "@/components/SignalCard";
+import type { BuyingSignal, DetectorEvent } from "@/lib/signal-types";
+import { cn } from "@/lib/utils";
 
-export default function HomePage() {
+const DEMO_WATCHLIST = [
+  // Recent funding (will fire funding signals)
+  { type: "company" as const, domain: "algo8.ai" },
+  { type: "company" as const, domain: "veear.com" },
+  { type: "company" as const, domain: "hirequotient.com" },
+  { type: "company" as const, domain: "promaxo.com" },
+  { type: "company" as const, domain: "uphold.com" },
+  { type: "company" as const, domain: "mojo.vision" },
+  // High-growth companies (exec hire + growth signals)
+  { type: "company" as const, domain: "retool.com" },
+  { type: "company" as const, domain: "razorpay.com" },
+  { type: "company" as const, domain: "postman.com" },
+  { type: "company" as const, domain: "freshworks.com" },
+  { type: "company" as const, domain: "chargebee.com" },
+  { type: "company" as const, domain: "browserstack.com" },
+  { type: "company" as const, domain: "notion.so" },
+  { type: "company" as const, domain: "figma.com" },
+  { type: "company" as const, domain: "vercel.com" },
+  { type: "company" as const, domain: "stripe.com" },
+  { type: "company" as const, domain: "linear.app" },
+  // Champions (will fire if they moved recently)
+  {
+    type: "champion" as const,
+    profileUrl: "https://www.linkedin.com/in/abhilashchowdhary",
+  },
+  {
+    type: "champion" as const,
+    profileUrl: "https://www.linkedin.com/in/patrickc",
+  },
+  {
+    type: "champion" as const,
+    profileUrl: "https://www.linkedin.com/in/guillaumecabane",
+  },
+];
+
+export default function SignalPage() {
   const [running, setRunning] = useState(false);
-  const [trace, setTrace] = useState<TraceEntry[]>([]);
-  const [prospects, setProspects] = useState<Prospect[]>([]);
-  const [planSummary, setPlanSummary] = useState<string | null>(null);
-  const [lastQuery, setLastQuery] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [signals, setSignals] = useState<BuyingSignal[]>([]);
 
-  async function runQuery(query: string) {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
+  async function runDetection() {
     setRunning(true);
-    setTrace([]);
-    setProspects([]);
-    setPlanSummary(null);
-    setLastQuery(query);
+    setStatus("Initializing signal detectors...");
+    setSignals([]);
 
     try {
-      const res = await fetch("/api/agent", {
+      const res = await fetch("/api/signals", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query }),
-        signal: controller.signal,
+        body: JSON.stringify({ watchlist: DEMO_WATCHLIST }),
       });
 
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({}));
-        setTrace((t) => [
-          ...t,
-          {
-            kind: "error",
-            message: err.error ?? `Request failed (${res.status})`,
-          },
-        ]);
+        setStatus(`Error: ${err.error ?? "Request failed"}`);
         setRunning(false);
         return;
       }
@@ -60,37 +73,38 @@ export default function HomePage() {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
+
         for (const line of lines) {
           if (!line.trim()) continue;
-          let ev: PipelineEvent | null = null;
+          let ev: DetectorEvent | null = null;
           try {
-            ev = JSON.parse(line) as PipelineEvent;
+            ev = JSON.parse(line) as DetectorEvent;
           } catch {
             continue;
           }
           if (!ev) continue;
 
-          if (ev.kind === "plan") {
-            setPlanSummary(ev.plan.industryHint ?? null);
-          }
-          if (ev.kind === "prospect") {
-            setProspects((p) => [...p, ev.prospect]);
-          } else {
-            const entry = traceEntryFromEvent(ev);
-            if (entry) setTrace((t) => [...t, entry]);
+          if (ev.kind === "status") {
+            setStatus(ev.message);
+          } else if (ev.kind === "signal") {
+            setSignals((s) => [...s, ev.signal]);
+          } else if (ev.kind === "error") {
+            setStatus(`Error: ${ev.message}`);
+          } else if (ev.kind === "done") {
+            setStatus(
+              ev.totalSignals > 0
+                ? `Done — ${ev.totalSignals} active signal${ev.totalSignals === 1 ? "" : "s"} detected.`
+                : "Done — no signals fired.",
+            );
           }
         }
       }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        setTrace((t) => [
-          ...t,
-          { kind: "error", message: (err as Error).message },
-        ]);
-      }
+      setStatus(`Error: ${(err as Error).message}`);
     } finally {
       setRunning(false);
     }
@@ -102,50 +116,70 @@ export default function HomePage() {
 
       <section className="mt-10">
         <h1 className="text-balance text-3xl font-semibold tracking-tight text-ink-100 sm:text-4xl">
-          Deep research for <span className="text-accent">GTM</span>.
+          Know the <span className="text-accent">exact moment</span> to strike.
         </h1>
         <p className="mt-2 max-w-2xl text-pretty text-ink-400">
-          Describe your ideal prospects in plain English. Signal chains
-          Crustdata&apos;s Company, Person, and Web APIs to return a ranked,
-          sourced, ready-to-send outreach list — in under a minute.
+          Signal watches your target accounts for buying signals — fresh
+          funding, new executives, growth spikes, champion moves — and drafts
+          the perfect outreach the second a signal fires.
         </p>
       </section>
 
       <section className="mt-6">
-        <QueryInput onSubmit={runQuery} loading={running} />
+        <div className="flex items-center justify-between rounded-xl border border-ink-700 bg-ink-900/40 p-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg border border-ink-700 bg-ink-900 p-2">
+              <Activity className="h-5 w-5 text-accent" />
+            </div>
+            <div>
+              <div className="text-sm font-medium text-ink-100">
+                Demo Watchlist
+              </div>
+              <div className="text-xs text-ink-500">
+                {DEMO_WATCHLIST.filter((e) => e.type === "company").length}{" "}
+                companies +{" "}
+                {DEMO_WATCHLIST.filter((e) => e.type === "champion").length}{" "}
+                champions
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={runDetection}
+            disabled={running}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all",
+              "bg-accent text-ink-950 hover:bg-accent-soft disabled:cursor-not-allowed disabled:bg-ink-700 disabled:text-ink-500",
+            )}
+          >
+            {running ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-ink-950 border-t-transparent" />
+                Scanning
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                Run Detection
+              </>
+            )}
+          </button>
+        </div>
       </section>
 
-      <section className="mt-8 grid min-h-[480px] flex-1 grid-cols-1 gap-6 lg:grid-cols-[320px,1fr]">
+      <section className="mt-8 grid min-h-[480px] flex-1 grid-cols-1 gap-6 lg:grid-cols-[280px,1fr]">
         <aside className="rounded-2xl border border-ink-800 bg-ink-900/30 p-4">
-          <ReasoningTrace entries={trace} running={running} />
+          <StatusPanel status={status} running={running} signalCount={signals.length} />
         </aside>
 
         <div className="rounded-2xl border border-ink-800 bg-ink-900/20 p-4">
-          {lastQuery ? (
-            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-full bg-ink-900 px-2 py-0.5 text-ink-400">
-                Query
-              </span>
-              <span className="text-ink-300">{lastQuery}</span>
-              {planSummary ? (
-                <>
-                  <span className="text-ink-600">·</span>
-                  <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-accent">
-                    {planSummary}
-                  </span>
-                </>
-              ) : null}
-            </div>
-          ) : null}
-
-          {prospects.length === 0 && !running ? (
-            <EmptyState />
+          {signals.length === 0 && !running ? (
+            <EmptySignalState />
           ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {prospects.map((p) => (
-                <ProspectCard key={p.id} prospect={p} />
+            <div className="space-y-4">
+              {signals.map((signal) => (
+                <SignalCard key={signal.id} signal={signal} />
               ))}
-              {running && prospects.length === 0 ? <SkeletonCards /> : null}
+              {running && signals.length === 0 && <SkeletonCards />}
             </div>
           )}
         </div>
@@ -160,9 +194,7 @@ function Header() {
   return (
     <header className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <div className="relative">
-          <Sparkles className="h-6 w-6 text-accent" />
-        </div>
+        <Sparkles className="h-6 w-6 text-accent" />
         <span className="text-xl font-semibold tracking-tight text-ink-100">
           Signal
         </span>
@@ -175,35 +207,57 @@ function Header() {
           <Database className="h-3.5 w-3.5 text-accent" />
           Powered by Crustdata
         </span>
-        <a
-          href="https://github.com"
-          target="_blank"
-          rel="noreferrer"
-          className="hidden items-center gap-1 hover:text-ink-100 sm:inline-flex"
-        >
-          <Github className="h-3.5 w-3.5" />
-          Source
-        </a>
       </div>
     </header>
   );
 }
 
-function EmptyState() {
+function StatusPanel({
+  status,
+  running,
+  signalCount,
+}: {
+  status: string | null;
+  running: boolean;
+  signalCount: number;
+}) {
   return (
-    <div className="flex h-full min-h-[360px] flex-col items-center justify-center gap-3 text-center">
-      <div className="rounded-full border border-ink-800 bg-ink-900/60 p-3">
-        <Sparkles className="h-5 w-5 text-accent" />
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex items-center gap-2 border-b border-ink-800 pb-2">
+        <Activity className="h-4 w-4 text-accent" />
+        <span className="text-xs uppercase tracking-widest text-ink-400">
+          Detection Status
+        </span>
       </div>
-      <p className="text-sm text-ink-400">
-        Type a prospecting thesis above — or try one of the killer queries.
-      </p>
-      <p className="max-w-md text-xs text-ink-500">
-        Signal compiles your brief into structured filters, queries Crustdata
-        for matching companies and decision-makers, enriches the top
-        candidates, scans the web for fresh signals, and drafts a personalized
-        opener for each.
-      </p>
+
+      {status && (
+        <div className="text-sm text-ink-300">
+          {running ? (
+            <div className="flex items-start gap-2">
+              <div className="mt-1 h-2 w-2 animate-pulse rounded-full bg-accent" />
+              <span>{status}</span>
+            </div>
+          ) : (
+            <span>{status}</span>
+          )}
+        </div>
+      )}
+
+      {signalCount > 0 && (
+        <div className="mt-auto rounded-lg border border-accent/20 bg-accent/5 p-3">
+          <div className="text-2xl font-bold text-accent">{signalCount}</div>
+          <div className="text-xs text-ink-400">
+            Active signal{signalCount === 1 ? "" : "s"}
+          </div>
+        </div>
+      )}
+
+      {!status && !running && (
+        <p className="text-xs text-ink-500">
+          Click &quot;Run Detection&quot; to scan your watchlist for buying
+          signals.
+        </p>
+      )}
     </div>
   );
 }
@@ -211,10 +265,10 @@ function EmptyState() {
 function SkeletonCards() {
   return (
     <>
-      {[0, 1, 2, 3].map((i) => (
+      {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="h-40 animate-pulse rounded-xl border border-ink-800 bg-ink-900/40"
+          className="h-64 animate-pulse rounded-xl border border-ink-800 bg-ink-900/40"
         />
       ))}
     </>

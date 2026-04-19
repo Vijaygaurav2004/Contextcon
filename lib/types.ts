@@ -40,9 +40,13 @@ export type CompanyHit = {
     total_investment_usd?: number;
     last_round_type?: string;
     last_fundraise_date?: string;
+    last_round_amount_usd?: number;
   };
   locations?: { country?: string; hq_country?: string };
   taxonomy?: { professional_network_industry?: string };
+  roles?: {
+    growth_6m?: Record<string, number>;
+  };
 };
 
 export type PersonHit = {
