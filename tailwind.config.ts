@@ -8,35 +8,33 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+        sans: ["'Inter'", "system-ui", "sans-serif"],
+        mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
       },
       colors: {
-        ink: {
-          950: "#0a0a0b",
-          900: "#111113",
-          800: "#18181b",
-          700: "#27272a",
-          600: "#3f3f46",
-          500: "#71717a",
-          400: "#a1a1aa",
-          300: "#d4d4d8",
-          200: "#e4e4e7",
-          100: "#f4f4f5",
+        zinc: {
+          925: "#111113",
+          850: "#1f1f23",
         },
         accent: {
-          DEFAULT: "#f97316",
-          soft: "#fdba74",
+          DEFAULT: "#3b82f6",
+          hover: "#60a5fa",
+          muted: "rgba(59, 130, 246, 0.12)",
+        },
+        signal: {
+          funding: "#4ade80",
+          exec: "#c084fc",
+          growth: "#fb923c",
+          champion: "#60a5fa",
         },
       },
       animation: {
-        "pulse-dot": "pulseDot 1.4s ease-in-out infinite",
+        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "spin-slow": "spin 8s linear infinite",
       },
-      keyframes: {
-        pulseDot: {
-          "0%, 80%, 100%": { opacity: "0.3", transform: "scale(0.9)" },
-          "40%": { opacity: "1", transform: "scale(1)" },
-        },
+      boxShadow: {
+        "subtle": "0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)",
+        "elevation": "0 4px 16px rgba(0, 0, 0, 0.4)",
       },
     },
   },

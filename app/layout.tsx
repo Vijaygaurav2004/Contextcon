@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Signal — Know When to Strike",
+  title: "Signal — AI Sales Intelligence",
   description:
-    "Watch your target accounts for buying signals: fresh funding, new executives, growth spikes, champion moves. Strike the moment a signal fires. Powered by Crustdata.",
+    "Find ideal prospects and monitor buying signals across your target accounts. Powered by Crustdata.",
+  icons: { icon: "/icon.svg" },
 };
 
 export default function RootLayout({
@@ -12,8 +13,12 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen bg-ink-950 text-ink-200 antialiased">
-        {children}
+      <body className="min-h-screen bg-[#09090b] text-zinc-400 antialiased">
+        <div className="noise-bg" aria-hidden="true" />
+        <div className="top-gradient" aria-hidden="true" />
+        <div className="relative z-10">
+          {children}
+        </div>
       </body>
     </html>
   );

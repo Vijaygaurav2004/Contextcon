@@ -9,6 +9,9 @@ import {
   UserPlus,
   Zap,
   DollarSign,
+  Mail,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -16,30 +19,54 @@ import { Toast } from "@/components/Toast";
 import type { BuyingSignal } from "@/lib/signal-types";
 import { cn } from "@/lib/utils";
 
-const SIGNAL_ICONS = {
-  funding: DollarSign,
-  exec_hire: UserPlus,
-  growth: TrendingUp,
-  champion_move: Zap,
+const SIGNAL_CONFIG = {
+  funding: {
+    icon: DollarSign,
+    label: "Fresh Funding",
+    color: "#34d399",
+    bgGlow: "rgba(52, 211, 153, 0.04)",
+    borderColor: "rgba(52, 211, 153, 0.15)",
+    badgeClass: "badge-funding",
+  },
+  exec_hire: {
+    icon: UserPlus,
+    label: "New Executive",
+    color: "#a78bfa",
+    bgGlow: "rgba(167, 139, 250, 0.04)",
+    borderColor: "rgba(167, 139, 250, 0.15)",
+    badgeClass: "badge-exec_hire",
+  },
+  growth: {
+    icon: TrendingUp,
+    label: "Growth Spike",
+    color: "#fb923c",
+    bgGlow: "rgba(251, 146, 60, 0.04)",
+    borderColor: "rgba(251, 146, 60, 0.15)",
+    badgeClass: "badge-growth",
+  },
+  champion_move: {
+    icon: Zap,
+    label: "Champion Moved",
+    color: "#60a5fa",
+    bgGlow: "rgba(96, 165, 250, 0.04)",
+    borderColor: "rgba(96, 165, 250, 0.15)",
+    badgeClass: "badge-champion_move",
+  },
 };
 
-const SIGNAL_COLORS = {
-  funding: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
-  exec_hire: "border-purple-500/40 bg-purple-500/10 text-purple-300",
-  growth: "border-orange-500/40 bg-orange-500/10 text-orange-300",
-  champion_move: "border-blue-500/40 bg-blue-500/10 text-blue-300",
-};
-
-const SIGNAL_LABELS = {
-  funding: "Fresh Funding",
-  exec_hire: "New Executive",
-  growth: "Growth Spike",
-  champion_move: "Champion Moved",
-};
-
-export function SignalCard({ signal }: { signal: BuyingSignal }) {
+export function SignalCard({
+  signal,
+  index = 0,
+}: {
+  signal: BuyingSignal;
+  index?: number;
+}) {
   const [copied, setCopied] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [emailExpanded, setEmailExpanded] = useState(false);
+
+  const config = SIGNAL_CONFIG[signal.type];
+  const Icon = config.icon;
 
   async function copyEmail() {
     if (!signal.email) return;
@@ -53,61 +80,89 @@ export function SignalCard({ signal }: { signal: BuyingSignal }) {
     }, 2000);
   }
 
-  const Icon = SIGNAL_ICONS[signal.type];
-  const colorClass = SIGNAL_COLORS[signal.type];
-  const label = SIGNAL_LABELS[signal.type];
+  // Score ring calculation
+  const radius = 20;
+  const circumference = 2 * Math.PI * radius;
+  const scorePercent = signal.score / 99;
+  const dashOffset = circumference * (1 - scorePercent);
 
-  const scoreTone =
+  const scoreColor =
     signal.score >= 90
-      ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-200"
+      ? "#34d399"
       : signal.score >= 75
-        ? "border-orange-500/50 bg-orange-500/15 text-orange-200"
-        : "border-ink-600 bg-ink-800 text-ink-300";
+        ? "#fbbf24"
+        : "#6b7280";
 
   return (
     <div
-      className={cn(
-        "animate-in fade-in slide-in-from-top-8 duration-500 fill-mode-both",
-        "group relative overflow-hidden rounded-xl border border-ink-700 bg-gradient-to-br from-ink-900/60 to-ink-900/30 backdrop-blur-sm transition-all hover:scale-[1.01] hover:border-ink-600 hover:shadow-xl hover:shadow-accent/5",
-      )}
-      style={{ animationDelay: `${Math.min(signal.score / 20, 8) * 50}ms` }}
+      className="animate-slide-up signal-card glass-card glow-border"
+      style={{
+        animationDelay: `${index * 120}ms`,
+        borderColor: config.borderColor,
+        background: `linear-gradient(135deg, ${config.bgGlow} 0%, rgba(12, 15, 19, 0.9) 100%)`,
+      }}
     >
-      {/* Signal type badge - top left */}
-      <div className="absolute left-4 top-4 z-10">
-        <div
-          className={cn(
-            "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-            colorClass,
-          )}
-        >
-          <Icon className="h-3.5 w-3.5" />
-          {label}
-        </div>
-      </div>
+      <div className="p-5 sm:p-6">
+        {/* ─── Top Row: Badge + Score ─────────────── */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Signal type icon */}
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border"
+              style={{
+                borderColor: config.borderColor,
+                backgroundColor: `${config.color}08`,
+              }}
+            >
+              <Icon className="h-5 w-5" style={{ color: config.color }} />
+            </div>
+            <div className="min-w-0">
+              <div className={cn("badge", config.badgeClass)}>
+                {config.label}
+              </div>
+            </div>
+          </div>
 
-      {/* Score badge - top right */}
-      <div className="absolute right-4 top-4 z-10">
-        <div
-          className={cn(
-            "flex h-12 w-12 items-center justify-center rounded-full border font-mono text-lg font-bold",
-            scoreTone,
-          )}
-          title={`Signal strength: ${signal.score}/99`}
-        >
-          {signal.score}
+          {/* Score Ring */}
+          <div className="score-ring h-14 w-14 shrink-0">
+            <svg viewBox="0 0 48 48">
+              <circle
+                cx="24"
+                cy="24"
+                r={radius}
+                strokeWidth="3"
+                stroke="rgba(255,255,255,0.05)"
+              />
+              <circle
+                cx="24"
+                cy="24"
+                r={radius}
+                strokeWidth="3"
+                stroke={scoreColor}
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+                style={{ filter: `drop-shadow(0 0 4px ${scoreColor}40)` }}
+              />
+            </svg>
+            <div className="flex flex-col items-center">
+              <span
+                className="text-lg font-bold stat-value"
+                style={{ color: scoreColor }}
+              >
+                {signal.score}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Main content */}
-      <div className="px-4 pb-4 pt-16">
-        {/* Company + Person */}
-        <div className="mb-3">
-          <h3 className="text-lg font-semibold text-ink-100">
+        {/* ─── Company + Person ───────────────────── */}
+        <div className="mt-4">
+          <h3 className="text-lg font-semibold text-ink-50 tracking-tight">
             {signal.company?.name ?? "Unknown Company"}
           </h3>
           {signal.person && (
-            <div className="mt-1 flex items-center gap-2 text-sm text-ink-300">
-              <span>{signal.person.name}</span>
+            <div className="mt-1 flex items-center gap-2 text-sm">
+              <span className="text-ink-200">{signal.person.name}</span>
               {signal.person.title && (
                 <>
                   <span className="text-ink-600">·</span>
@@ -119,7 +174,7 @@ export function SignalCard({ signal }: { signal: BuyingSignal }) {
                   href={signal.person.profileUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-accent hover:underline"
+                  className="text-accent hover:text-accent-soft transition-colors"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                 </a>
@@ -128,80 +183,118 @@ export function SignalCard({ signal }: { signal: BuyingSignal }) {
           )}
         </div>
 
-        {/* Trigger */}
-        <div className="mb-3 rounded-lg border border-accent/20 bg-accent/5 p-3">
-          <div className="mb-1 text-sm font-medium text-accent">
+        {/* ─── Trigger ───────────────────────────── */}
+        <div
+          className="mt-4 rounded-xl p-4 border"
+          style={{
+            borderColor: `${config.color}20`,
+            background: `${config.color}05`,
+          }}
+        >
+          <div className="text-sm font-semibold" style={{ color: config.color }}>
             {signal.trigger.headline}
           </div>
-          <div className="text-xs text-ink-400">{signal.trigger.detail}</div>
+          <div className="mt-1.5 text-xs text-ink-400 leading-relaxed">
+            {signal.trigger.detail}
+          </div>
         </div>
 
-        {/* Evidence */}
+        {/* ─── Evidence ──────────────────────────── */}
         {signal.evidence.length > 0 && (
-          <div className="mb-4">
-            <div className="mb-1.5 text-[10px] uppercase tracking-widest text-ink-500">
-              Evidence
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-px flex-1 bg-ink-600/30" />
+              <span className="text-[9px] uppercase tracking-[0.2em] text-ink-500 font-medium">
+                Evidence
+              </span>
+              <div className="h-px flex-1 bg-ink-600/30" />
             </div>
-            <ul className="space-y-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {signal.evidence.map((e, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-accent" />
-                  <div className="min-w-0 flex-1">
-                    <span className="text-ink-400">{e.label}:</span>{" "}
-                    <span className="text-ink-200">{e.value}</span>
-                    {e.source?.url && (
-                      <a
-                        href={e.source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="ml-1 inline-flex items-center gap-0.5 text-xs text-accent hover:underline"
-                      >
-                        {e.source.label}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
+                <div
+                  key={i}
+                  className="rounded-lg border border-ink-600/30 bg-ink-900/40 px-3 py-2"
+                >
+                  <div className="text-[9px] uppercase tracking-wider text-ink-500">
+                    {e.label}
                   </div>
-                </li>
+                  <div className="mt-0.5 text-sm font-medium text-ink-100">
+                    {e.value}
+                  </div>
+                  {e.source?.url && (
+                    <a
+                      href={e.source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-accent hover:underline"
+                    >
+                      {e.source.label}
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  )}
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
 
-        {/* Email */}
+        {/* ─── Email Playbook ────────────────────── */}
         {signal.email && (
-          <div className="border-t border-ink-800 pt-3">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-[10px] uppercase tracking-widest text-ink-500">
-                Playbook: {signal.playbook.replace(/_/g, " ")}
+          <div className="mt-4 border-t border-ink-600/30 pt-4">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setEmailExpanded(!emailExpanded)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setEmailExpanded(!emailExpanded); }}
+              className="flex w-full items-center justify-between text-left group cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5 text-accent/60" />
+                <span className="text-[10px] uppercase tracking-[0.15em] text-ink-400 font-medium">
+                  Playbook: {signal.playbook.replace(/_/g, " ")}
+                </span>
               </div>
-              <button
-                onClick={copyEmail}
-                className={cn(
-                  "flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-all",
-                  copied
-                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300"
-                    : "border-ink-700 bg-ink-900 text-ink-300 hover:border-accent/60 hover:text-ink-100",
-                )}
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-3 w-3" /> Copied
-                  </>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copyEmail();
+                  }}
+                  className={cn(
+                    "copy-btn flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
+                    copied
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                      : "border-ink-600 bg-ink-800/50 text-ink-300 hover:border-accent/40 hover:text-ink-100",
+                  )}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-3 w-3" /> Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" /> Copy email
+                    </>
+                  )}
+                </button>
+                {emailExpanded ? (
+                  <ChevronUp className="h-4 w-4 text-ink-500" />
                 ) : (
-                  <>
-                    <Copy className="h-3 w-3" /> Copy email
-                  </>
+                  <ChevronDown className="h-4 w-4 text-ink-500" />
                 )}
-              </button>
-            </div>
-            <div className="rounded-lg border border-ink-800 bg-ink-950/50 p-3">
-              <div className="mb-1.5 text-sm font-medium text-ink-100">
-                {signal.email.subject}
               </div>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-300">
-                {signal.email.body}
-              </p>
             </div>
+
+            {emailExpanded && (
+              <div className="mt-3 animate-scale-fade rounded-xl border border-ink-600/30 bg-ink-950/50 p-4 shadow-inner-glow">
+                <div className="text-sm font-semibold text-ink-100">
+                  {signal.email.subject}
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink-300">
+                  {signal.email.body}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -213,18 +306,20 @@ export function SignalCard({ signal }: { signal: BuyingSignal }) {
 
 export function EmptySignalState() {
   return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-center">
-      <div className="rounded-full border border-ink-800 bg-ink-900/60 p-4">
-        <AlertCircle className="h-6 w-6 text-ink-500" />
+    <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 text-center">
+      <div className="rounded-full border border-ink-600/50 bg-ink-800/30 p-5">
+        <AlertCircle className="h-7 w-7 text-ink-500" />
       </div>
-      <p className="text-sm text-ink-400">
-        No buying signals detected in the past 45 days.
-      </p>
-      <p className="max-w-md text-xs text-ink-500">
-        Try adding more companies or champions to your watchlist. Signals fire
-        when a company raises funding, hires a key exec, grows headcount, or a
-        past champion changes companies.
-      </p>
+      <div>
+        <p className="text-sm font-medium text-ink-300">
+          No buying signals detected in the past 45 days.
+        </p>
+        <p className="mt-2 max-w-md text-xs text-ink-500 leading-relaxed">
+          Try adding more companies or champions to your watchlist. Signals fire
+          when a company raises funding, hires a key exec, grows headcount, or a
+          past champion changes companies.
+        </p>
+      </div>
     </div>
   );
 }

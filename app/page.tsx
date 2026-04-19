@@ -1,21 +1,45 @@
 "use client";
 
-import { Activity, Database, Play, Sparkles } from "lucide-react";
-import { useState } from "react";
+import {
+  ArrowRight,
+  Database,
+  Play,
+  Radar,
+  Search,
+  Sparkles,
+  Target,
+  Users,
+  Zap,
+  Activity,
+  BarChart3,
+  Mail,
+  Clock,
+} from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
 
-import { EmptySignalState, SignalCard } from "@/components/SignalCard";
+import { SignalCard, EmptySignalState } from "@/components/SignalCard";
+import { RadarVisualization } from "@/components/RadarViz";
+import { MetricsBar } from "@/components/MetricsBar";
+import { DetectorStatusPanel } from "@/components/DetectorStatus";
+import { QueryInput } from "@/components/QueryInput";
+import { ProspectCard } from "@/components/ProspectCard";
+import {
+  ReasoningTrace,
+  traceEntryFromEvent,
+} from "@/components/ReasoningTrace";
+import type { TraceEntry } from "@/components/ReasoningTrace";
 import type { BuyingSignal, DetectorEvent } from "@/lib/signal-types";
+import type { PipelineEvent } from "@/lib/pipeline";
+import type { Prospect } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const DEMO_WATCHLIST = [
-  // Recent funding (will fire funding signals)
   { type: "company" as const, domain: "algo8.ai" },
   { type: "company" as const, domain: "veear.com" },
   { type: "company" as const, domain: "hirequotient.com" },
   { type: "company" as const, domain: "promaxo.com" },
   { type: "company" as const, domain: "uphold.com" },
   { type: "company" as const, domain: "mojo.vision" },
-  // High-growth companies (exec hire + growth signals)
   { type: "company" as const, domain: "retool.com" },
   { type: "company" as const, domain: "razorpay.com" },
   { type: "company" as const, domain: "postman.com" },
@@ -27,7 +51,6 @@ const DEMO_WATCHLIST = [
   { type: "company" as const, domain: "vercel.com" },
   { type: "company" as const, domain: "stripe.com" },
   { type: "company" as const, domain: "linear.app" },
-  // Champions (will fire if they moved recently)
   {
     type: "champion" as const,
     profileUrl: "https://www.linkedin.com/in/abhilashchowdhary",
@@ -42,15 +65,53 @@ const DEMO_WATCHLIST = [
   },
 ];
 
+type Mode = "hunter" | "scanner";
+
 export default function SignalPage() {
-  const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>("hunter");
+
+  // Scanner state
+  const [scannerRunning, setScannerRunning] = useState(false);
+  const [scannerHasRun, setScannerHasRun] = useState(false);
+  const [scannerStatus, setScannerStatus] = useState<string | null>(null);
   const [signals, setSignals] = useState<BuyingSignal[]>([]);
+  const [scannerElapsed, setScannerElapsed] = useState(0);
+  const scannerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Hunter state
+  const [hunterRunning, setHunterRunning] = useState(false);
+  const [hunterHasRun, setHunterHasRun] = useState(false);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [traceEntries, setTraceEntries] = useState<TraceEntry[]>([]);
+  const [hunterElapsed, setHunterElapsed] = useState(0);
+  const hunterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (scannerRunning) {
+      const start = Date.now();
+      scannerTimerRef.current = setInterval(() => setScannerElapsed(Date.now() - start), 100);
+    } else {
+      if (scannerTimerRef.current) clearInterval(scannerTimerRef.current);
+    }
+    return () => { if (scannerTimerRef.current) clearInterval(scannerTimerRef.current); };
+  }, [scannerRunning]);
+
+  useEffect(() => {
+    if (hunterRunning) {
+      const start = Date.now();
+      hunterTimerRef.current = setInterval(() => setHunterElapsed(Date.now() - start), 100);
+    } else {
+      if (hunterTimerRef.current) clearInterval(hunterTimerRef.current);
+    }
+    return () => { if (hunterTimerRef.current) clearInterval(hunterTimerRef.current); };
+  }, [hunterRunning]);
 
   async function runDetection() {
-    setRunning(true);
-    setStatus("Initializing signal detectors...");
+    setScannerRunning(true);
+    setScannerHasRun(true);
+    setScannerStatus("Initializing signal detectors...");
     setSignals([]);
+    setScannerElapsed(0);
 
     try {
       const res = await fetch("/api/signals", {
@@ -61,8 +122,8 @@ export default function SignalPage() {
 
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({}));
-        setStatus(`Error: ${err.error ?? "Request failed"}`);
-        setRunning(false);
+        setScannerStatus(`Error: ${err.error ?? "Request failed"}`);
+        setScannerRunning(false);
         return;
       }
 
@@ -73,7 +134,6 @@ export default function SignalPage() {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
@@ -81,192 +141,316 @@ export default function SignalPage() {
         for (const line of lines) {
           if (!line.trim()) continue;
           let ev: DetectorEvent | null = null;
-          try {
-            ev = JSON.parse(line) as DetectorEvent;
-          } catch {
-            continue;
-          }
+          try { ev = JSON.parse(line) as DetectorEvent; } catch { continue; }
           if (!ev) continue;
 
-          if (ev.kind === "status") {
-            setStatus(ev.message);
-          } else if (ev.kind === "signal") {
-            setSignals((s) => [...s, ev.signal]);
-          } else if (ev.kind === "error") {
-            setStatus(`Error: ${ev.message}`);
-          } else if (ev.kind === "done") {
-            setStatus(
+          if (ev.kind === "status") setScannerStatus(ev.message);
+          else if (ev.kind === "signal") setSignals((s) => [...s, ev.signal]);
+          else if (ev.kind === "error") setScannerStatus(`Error: ${ev.message}`);
+          else if (ev.kind === "done") {
+            setScannerStatus(
               ev.totalSignals > 0
-                ? `Done — ${ev.totalSignals} active signal${ev.totalSignals === 1 ? "" : "s"} detected.`
-                : "Done — no signals fired.",
+                ? `Complete — ${ev.totalSignals} signal${ev.totalSignals === 1 ? "" : "s"} detected`
+                : "Scan complete — no signals fired",
             );
           }
         }
       }
     } catch (err) {
-      setStatus(`Error: ${(err as Error).message}`);
+      setScannerStatus(`Error: ${(err as Error).message}`);
     } finally {
-      setRunning(false);
+      setScannerRunning(false);
     }
   }
 
+  const runHunter = useCallback(async (query: string) => {
+    setHunterRunning(true);
+    setHunterHasRun(true);
+    setProspects([]);
+    setTraceEntries([]);
+    setHunterElapsed(0);
+
+    try {
+      const res = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({}));
+        setTraceEntries((t) => [...t, { kind: "error", message: err.error ?? "Request failed" }]);
+        setHunterRunning(false);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let ev: PipelineEvent | null = null;
+          try { ev = JSON.parse(line) as PipelineEvent; } catch { continue; }
+          if (!ev) continue;
+
+          if (ev.kind === "prospect") setProspects((p) => [...p, ev.prospect]);
+          const entry = traceEntryFromEvent(ev);
+          if (entry) setTraceEntries((t) => [...t, entry]);
+        }
+      }
+    } catch (err) {
+      setTraceEntries((t) => [...t, { kind: "error", message: (err as Error).message }]);
+    } finally {
+      setHunterRunning(false);
+    }
+  }, []);
+
+  const companyCount = DEMO_WATCHLIST.filter((e) => e.type === "company").length;
+  const championCount = DEMO_WATCHLIST.filter((e) => e.type === "champion").length;
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-8">
-      <Header />
-
-      <section className="mt-10">
-        <h1 className="text-balance text-3xl font-semibold tracking-tight text-ink-100 sm:text-4xl">
-          Know the <span className="text-accent">exact moment</span> to strike.
-        </h1>
-        <p className="mt-2 max-w-2xl text-pretty text-ink-400">
-          Signal watches your target accounts for buying signals — fresh
-          funding, new executives, growth spikes, champion moves — and drafts
-          the perfect outreach the second a signal fires.
-        </p>
-      </section>
-
-      <section className="mt-6">
-        <div className="flex items-center justify-between rounded-xl border border-ink-700 bg-ink-900/40 p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg border border-ink-700 bg-ink-900 p-2">
-              <Activity className="h-5 w-5 text-accent" />
+    <div className="mx-auto min-h-screen max-w-[1280px] px-4 sm:px-6 lg:px-8">
+      {/* ─── Header ──────────────────────────────── */}
+      <header className="flex items-center justify-between py-5 border-b border-zinc-800/60">
+        <div className="flex items-center gap-6">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500">
+              <Zap className="h-4 w-4 text-white" />
             </div>
-            <div>
-              <div className="text-sm font-medium text-ink-100">
-                Demo Watchlist
-              </div>
-              <div className="text-xs text-ink-500">
-                {DEMO_WATCHLIST.filter((e) => e.type === "company").length}{" "}
-                companies +{" "}
-                {DEMO_WATCHLIST.filter((e) => e.type === "champion").length}{" "}
-                champions
-              </div>
-            </div>
+            <span className="text-[15px] font-semibold text-zinc-100 tracking-tight">
+              Signal
+            </span>
           </div>
-          <button
-            onClick={runDetection}
-            disabled={running}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all",
-              "bg-accent text-ink-950 hover:bg-accent-soft disabled:cursor-not-allowed disabled:bg-ink-700 disabled:text-ink-500",
-            )}
-          >
-            {running ? (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-ink-950 border-t-transparent" />
-                Scanning
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4" />
-                Run Detection
-              </>
-            )}
-          </button>
+
+          {/* Nav tabs */}
+          <nav className="flex items-center">
+            <button
+              onClick={() => setMode("hunter")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors",
+                mode === "hunter"
+                  ? "text-zinc-100 bg-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-300",
+              )}
+            >
+              <Search className="h-3.5 w-3.5" />
+              Prospect Hunter
+            </button>
+            <button
+              onClick={() => setMode("scanner")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors",
+                mode === "scanner"
+                  ? "text-zinc-100 bg-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-300",
+              )}
+            >
+              <Radar className="h-3.5 w-3.5" />
+              Signal Scanner
+            </button>
+          </nav>
         </div>
-      </section>
 
-      <section className="mt-8 grid min-h-[480px] flex-1 grid-cols-1 gap-6 lg:grid-cols-[280px,1fr]">
-        <aside className="rounded-2xl border border-ink-800 bg-ink-900/30 p-4">
-          <StatusPanel status={status} running={running} signalCount={signals.length} />
-        </aside>
-
-        <div className="rounded-2xl border border-ink-800 bg-ink-900/20 p-4">
-          {signals.length === 0 && !running ? (
-            <EmptySignalState />
-          ) : (
-            <div className="space-y-4">
-              {signals.map((signal) => (
-                <SignalCard key={signal.id} signal={signal} />
-              ))}
-              {running && signals.length === 0 && <SkeletonCards />}
-            </div>
-          )}
+        <div className="flex items-center gap-3 text-xs text-zinc-500">
+          <span className="hidden sm:flex items-center gap-1.5 border border-zinc-800 rounded-md px-2.5 py-1">
+            <Database className="h-3 w-3 text-zinc-400" />
+            Crustdata
+          </span>
+          <span className="hidden md:flex items-center gap-1.5 border border-zinc-800 rounded-md px-2.5 py-1">
+            <Sparkles className="h-3 w-3 text-blue-400" />
+            ContextCon 2026
+          </span>
         </div>
-      </section>
+      </header>
 
-      <Footer />
-    </main>
-  );
-}
-
-function Header() {
-  return (
-    <header className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-6 w-6 text-accent" />
-        <span className="text-xl font-semibold tracking-tight text-ink-100">
-          Signal
-        </span>
-        <span className="rounded-full border border-ink-700 bg-ink-900 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-400">
-          ContextCon &apos;26
-        </span>
-      </div>
-      <div className="flex items-center gap-3 text-xs text-ink-400">
-        <span className="hidden items-center gap-1 sm:inline-flex">
-          <Database className="h-3.5 w-3.5 text-accent" />
-          Powered by Crustdata
-        </span>
-      </div>
-    </header>
-  );
-}
-
-function StatusPanel({
-  status,
-  running,
-  signalCount,
-}: {
-  status: string | null;
-  running: boolean;
-  signalCount: number;
-}) {
-  const isDone = status?.includes("Done —");
-  
-  return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center gap-2 border-b border-ink-800 pb-2">
-        <Activity className={cn("h-4 w-4", running ? "animate-pulse text-accent" : "text-accent")} />
-        <span className="text-xs uppercase tracking-widest text-ink-400">
-          Detection Status
-        </span>
-      </div>
-
-      {status && (
-        <div className={cn("text-sm", isDone && signalCount > 0 ? "text-emerald-300" : "text-ink-300")}>
-          {running ? (
-            <div className="flex items-start gap-2">
-              <div className="mt-1 h-2 w-2 animate-pulse rounded-full bg-accent" />
-              <span>{status}</span>
-            </div>
-          ) : isDone && signalCount > 0 ? (
-            <div className="flex items-start gap-2 animate-in fade-in slide-in-from-left-4 duration-500">
-              <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20">
-                <Activity className="h-3 w-3 text-emerald-400" />
+      <main className="py-6">
+        {/* ═══════ HUNTER MODE ═══════════════════════ */}
+        {mode === "hunter" && (
+          <div className="animate-fade-in">
+            {/* Query area */}
+            <div className="surface p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <h1 className="text-[15px] font-semibold text-zinc-100">
+                  Find your ideal prospects
+                </h1>
+                {hunterRunning && (
+                  <div className="flex items-center gap-1.5 ml-auto text-xs text-zinc-500 font-mono">
+                    <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    {(hunterElapsed / 1000).toFixed(1)}s
+                  </div>
+                )}
               </div>
-              <span>{status}</span>
+              <QueryInput onSubmit={runHunter} loading={hunterRunning} />
             </div>
-          ) : (
-            <span>{status}</span>
-          )}
-        </div>
-      )}
 
-      {signalCount > 0 && (
-        <div className="mt-auto animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 rounded-lg border border-accent/20 bg-accent/5 p-3">
-          <div className="text-2xl font-bold text-accent">{signalCount}</div>
-          <div className="text-xs text-ink-400">
-            Active signal{signalCount === 1 ? "" : "s"}
+            {/* Results */}
+            {hunterHasRun && (
+              <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[300px,1fr] animate-slide-up">
+                {/* Trace sidebar */}
+                <div className="surface p-4 h-fit max-h-[75vh] overflow-y-auto lg:sticky lg:top-4">
+                  <ReasoningTrace entries={traceEntries} running={hunterRunning} />
+                </div>
+
+                {/* Prospects */}
+                <div className="min-w-0 space-y-3">
+                  {prospects.length > 0 && (
+                    <div className="flex items-center justify-between px-0.5 text-xs text-zinc-500">
+                      <span>
+                        <span className="text-zinc-200 font-medium">{prospects.length}</span> prospect{prospects.length === 1 ? "" : "s"}
+                      </span>
+                      <span className="font-mono">
+                        avg score: {Math.round(prospects.reduce((a, p) => a + p.score, 0) / prospects.length)}
+                      </span>
+                    </div>
+                  )}
+
+                  {prospects.map((p, i) => (
+                    <div key={p.id} className="animate-slide-up" style={{ animationDelay: `${i * 60}ms` }}>
+                      <ProspectCard prospect={p} />
+                    </div>
+                  ))}
+
+                  {hunterRunning && prospects.length === 0 && <SkeletonCards />}
+
+                  {!hunterRunning && prospects.length === 0 && hunterHasRun && (
+                    <div className="surface p-8 text-center">
+                      <p className="text-sm text-zinc-500">No prospects matched. Try a broader query.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Pre-run state */}
+            {!hunterHasRun && (
+              <div className="mt-10 flex flex-col items-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full">
+                  {[
+                    { icon: Database, title: "4 APIs", desc: "Company, Person, Enrich, Web Search" },
+                    { icon: BarChart3, title: "AI Scoring", desc: "Each prospect scored 0-99 with evidence" },
+                    { icon: Mail, title: "Auto Outreach", desc: "Context-aware emails drafted instantly" },
+                  ].map(({ icon: Icon, title, desc }) => (
+                    <div key={title} className="surface p-4 text-center">
+                      <Icon className="h-5 w-5 text-zinc-500 mx-auto" />
+                      <div className="mt-2 text-sm font-medium text-zinc-200">{title}</div>
+                      <div className="mt-1 text-xs text-zinc-500">{desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {!status && !running && (
-        <p className="text-xs text-ink-500">
-          Click &quot;Run Detection&quot; to scan your watchlist for buying
-          signals.
-        </p>
-      )}
+        {/* ═══════ SCANNER MODE ═══════════════════════ */}
+        {mode === "scanner" && (
+          <div className="animate-fade-in">
+            {/* Control bar */}
+            <div className="surface p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-[15px] font-semibold text-zinc-100">
+                    Signal Scanner
+                  </h1>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {companyCount} companies · {championCount} champions
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {scannerRunning && (
+                    <span className="flex items-center gap-1.5 text-xs text-zinc-500 font-mono">
+                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      {(scannerElapsed / 1000).toFixed(1)}s
+                    </span>
+                  )}
+                  <button
+                    id="run-detection-btn"
+                    onClick={runDetection}
+                    disabled={scannerRunning}
+                    className="btn-primary"
+                  >
+                    {scannerRunning ? (
+                      <>
+                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-3.5 w-3.5" fill="currentColor" />
+                        Run Detection
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {scannerHasRun && (
+                <MetricsBar signals={signals} running={scannerRunning} elapsedMs={scannerElapsed} />
+              )}
+            </div>
+
+            {/* Scanner results */}
+            {scannerHasRun && (
+              <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[280px,1fr] animate-slide-up">
+                <div className="space-y-4">
+                  <div className="surface p-5 flex flex-col items-center">
+                    <RadarVisualization running={scannerRunning} signalCount={signals.length} />
+                  </div>
+                  <DetectorStatusPanel
+                    status={scannerStatus}
+                    running={scannerRunning}
+                    signalCount={signals.length}
+                    signals={signals}
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  {signals.length === 0 && !scannerRunning ? (
+                    <div className="surface p-8"><EmptySignalState /></div>
+                  ) : (
+                    <div className="space-y-3">
+                      {signals.map((signal, index) => (
+                        <SignalCard key={signal.id} signal={signal} index={index} />
+                      ))}
+                      {scannerRunning && signals.length === 0 && <SkeletonCards />}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Pre-run */}
+            {!scannerHasRun && (
+              <div className="mt-10 flex flex-col items-center">
+                <div className="surface max-w-lg w-full p-8 text-center">
+                  <Radar className="h-8 w-8 text-zinc-600 mx-auto" />
+                  <h3 className="mt-4 text-sm font-medium text-zinc-200">Ready to scan</h3>
+                  <p className="mt-2 text-xs text-zinc-500 leading-relaxed max-w-sm mx-auto">
+                    Click Run Detection to scan {companyCount} companies and {championCount} champions
+                    for funding events, executive hires, growth spikes, and champion moves.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-800/60 py-4 mt-8 flex items-center justify-between text-[11px] text-zinc-600">
+        <span>Built at ContextCon 2026 · Crustdata × Y Combinator</span>
+        <span className="font-mono">YC RFS: AI-Native Agencies</span>
+      </footer>
     </div>
   );
 }
@@ -275,26 +459,19 @@ function SkeletonCards() {
   return (
     <>
       {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          className="h-64 animate-pulse rounded-xl border border-ink-800 bg-ink-900/40"
-        />
+        <div key={i} className="surface p-5 space-y-3" style={{ animationDelay: `${i * 100}ms` }}>
+          <div className="flex justify-between">
+            <div className="skeleton h-5 w-32" />
+            <div className="skeleton h-10 w-10 rounded-full" />
+          </div>
+          <div className="skeleton h-4 w-48" />
+          <div className="skeleton h-16 w-full" />
+          <div className="space-y-2">
+            <div className="skeleton h-3 w-full" />
+            <div className="skeleton h-3 w-3/4" />
+          </div>
+        </div>
       ))}
     </>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-ink-800 pt-4 text-xs text-ink-500 sm:flex-row">
-      <span>
-        Built in 5 hours at ContextCon — Crustdata × Y Combinator, Bengaluru,
-        April 2026.
-      </span>
-      <span className="font-mono">
-        YC Spring &apos;26 RFS:{" "}
-        <span className="text-accent">AI-Native Agencies</span>
-      </span>
-    </footer>
   );
 }

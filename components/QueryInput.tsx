@@ -1,14 +1,14 @@
 "use client";
 
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-const KILLER_QUERIES = [
-  "10 VP Sales or CROs at Series A B2B SaaS companies in India with 50–200 employees",
-  "8 Head of Engineering at fintech companies in London with Series B funding",
-  "10 CMOs at US software companies with over $20M raised, recently hiring growth marketers",
+const EXAMPLES = [
+  "10 VP Sales at Series A SaaS companies in India with 50-200 employees",
+  "Head of Engineering at fintech companies in London, Series B+",
+  "CMOs at US software companies with $20M+ raised",
 ];
 
 export function QueryInput({
@@ -33,37 +33,43 @@ export function QueryInput({
           e.preventDefault();
           submit(value);
         }}
-        className={cn(
-          "group flex items-center gap-3 rounded-2xl border border-ink-700 bg-ink-900/60 px-4 py-3 transition-colors",
-          "focus-within:border-accent/70 focus-within:bg-ink-900",
-        )}
+        className="flex gap-2"
       >
-        <Sparkles className="h-5 w-5 shrink-0 text-accent" />
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Describe your ideal prospects — who, where, what stage, what signal..."
-          className="flex-1 bg-transparent text-base text-ink-100 placeholder:text-ink-500 focus:outline-none"
+          placeholder="Describe your ideal prospect..."
+          className={cn(
+            "flex-1 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3.5 py-2.5 text-[13px] text-zinc-200",
+            "placeholder:text-zinc-600",
+            "focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700",
+            "transition-colors",
+          )}
           autoFocus
           disabled={loading}
         />
         <button
           type="submit"
           disabled={loading || value.trim().length < 6}
-          className={cn(
-            "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-            "bg-accent text-ink-950 hover:bg-accent-soft disabled:cursor-not-allowed disabled:bg-ink-700 disabled:text-ink-500",
-          )}
+          className="btn-primary whitespace-nowrap"
         >
-          {loading ? "Running" : "Run"}
-          <ArrowRight className="h-4 w-4" />
+          {loading ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Running
+            </>
+          ) : (
+            <>
+              Run
+              <ArrowRight className="h-3.5 w-3.5" />
+            </>
+          )}
         </button>
       </form>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <span className="text-xs uppercase tracking-wide text-ink-500">
-          Try
-        </span>
-        {KILLER_QUERIES.map((q, i) => (
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-zinc-600 mr-1">Try:</span>
+        {EXAMPLES.map((q, i) => (
           <button
             key={i}
             type="button"
@@ -72,9 +78,13 @@ export function QueryInput({
               setValue(q);
               submit(q);
             }}
-            className="rounded-full border border-ink-700 bg-ink-900/50 px-3 py-1 text-xs text-ink-300 transition-colors hover:border-accent/60 hover:text-ink-100 disabled:opacity-40"
+            className={cn(
+              "rounded-md border border-zinc-800 bg-transparent px-2 py-1 text-[11px] text-zinc-500",
+              "transition-colors hover:border-zinc-700 hover:text-zinc-300",
+              "disabled:opacity-40 disabled:cursor-not-allowed",
+            )}
           >
-            {q.length > 70 ? q.slice(0, 70) + "…" : q}
+            {q.length > 50 ? q.slice(0, 50) + "…" : q}
           </button>
         ))}
       </div>

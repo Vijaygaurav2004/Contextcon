@@ -21,11 +21,11 @@ export function Toast({ message, show }: { message: string; show: boolean }) {
   return (
     <div
       className={cn(
-        "fixed bottom-8 right-8 z-50 flex items-center gap-2 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 shadow-xl backdrop-blur-sm",
-        "animate-in fade-in slide-in-from-bottom-4 duration-300",
+        "fixed bottom-8 right-8 z-50 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-ink-900/90 px-5 py-3.5 shadow-2xl backdrop-blur-xl",
+        "animate-slide-up",
       )}
     >
-      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20">
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 ring-2 ring-emerald-500/30">
         <Check className="h-3.5 w-3.5 text-emerald-300" />
       </div>
       <span className="text-sm font-medium text-emerald-100">{message}</span>

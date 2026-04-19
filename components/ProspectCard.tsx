@@ -1,13 +1,43 @@
 "use client";
 
-import { Check, Copy, ExternalLink, MapPin } from "lucide-react";
+import { Check, Copy, ExternalLink, MapPin, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 
 import type { Prospect } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+function ScoreIndicator({ score }: { score: number }) {
+  const r = 18;
+  const c = 2 * Math.PI * r;
+  const fill = (score / 100) * c;
+  const color =
+    score >= 85
+      ? "#22c55e"
+      : score >= 70
+        ? "#3b82f6"
+        : score >= 50
+          ? "#eab308"
+          : "#71717a";
+
+  return (
+    <div className="relative flex h-11 w-11 items-center justify-center shrink-0">
+      <svg width={44} height={44} className="-rotate-90">
+        <circle cx={22} cy={22} r={r} fill="none" stroke="#27272a" strokeWidth={2.5} />
+        <circle
+          cx={22} cy={22} r={r} fill="none" stroke={color} strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeDasharray={`${fill} ${c - fill}`}
+          className="transition-all duration-500"
+        />
+      </svg>
+      <span className="absolute text-xs font-semibold text-zinc-200 font-mono">{score}</span>
+    </div>
+  );
+}
+
 export function ProspectCard({ prospect }: { prospect: Prospect }) {
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   async function copyEmail() {
     if (!prospect.email) return;
@@ -17,132 +47,122 @@ export function ProspectCard({ prospect }: { prospect: Prospect }) {
     setTimeout(() => setCopied(false), 1800);
   }
 
-  const scoreTone =
-    prospect.score >= 85
-      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-      : prospect.score >= 70
-        ? "border-accent/40 bg-accent/10 text-accent"
-        : "border-ink-700 bg-ink-900 text-ink-300";
-
   return (
-    <div className="overflow-hidden rounded-xl border border-ink-700 bg-ink-900/40 transition-colors hover:border-ink-600">
-      <div className="flex items-start justify-between gap-4 p-4">
-        <div className="min-w-0">
+    <div className="surface-interactive overflow-hidden">
+      {/* Header */}
+      <div className="flex items-start gap-3 p-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-[15px] font-semibold text-ink-100">
+            <h3 className="text-[13px] font-medium text-zinc-100 truncate">
               {prospect.name}
             </h3>
-            {prospect.profileUrl ? (
+            {prospect.profileUrl && (
               <a
                 href={prospect.profileUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-ink-500 hover:text-accent"
+                className="text-zinc-600 hover:text-blue-400 transition-colors shrink-0"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <ExternalLink className="h-3 w-3" />
               </a>
-            ) : null}
+            )}
           </div>
-          <div className="mt-0.5 truncate text-sm text-ink-300">
+
+          <p className="mt-0.5 text-xs text-zinc-500 truncate">
             {prospect.title ?? "—"}
-            {prospect.companyName ? (
-              <>
-                {" · "}
-                <span className="text-ink-200">{prospect.companyName}</span>
-              </>
-            ) : null}
-          </div>
-          {prospect.location ? (
-            <div className="mt-1 flex items-center gap-1 text-xs text-ink-500">
-              <MapPin className="h-3 w-3" />
-              <span className="truncate">{prospect.location}</span>
+            {prospect.companyName && (
+              <> · <span className="text-zinc-400">{prospect.companyName}</span></>
+            )}
+          </p>
+
+          {prospect.location && (
+            <div className="mt-1 flex items-center gap-1 text-[11px] text-zinc-600">
+              <MapPin className="h-2.5 w-2.5" />
+              {prospect.location}
             </div>
-          ) : null}
+          )}
+
+          {prospect.scoreReasons.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {prospect.scoreReasons.map((r, i) => (
+                <span key={i} className="text-[10px] text-zinc-500 bg-zinc-800/80 rounded px-1.5 py-0.5">
+                  {r}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div
-          className={cn(
-            "shrink-0 rounded-lg border px-2.5 py-1 text-center font-mono text-sm font-semibold",
-            scoreTone,
-          )}
-          title={prospect.scoreReasons.join(" · ")}
-        >
-          {prospect.score}
-          <div className="mt-0.5 text-[9px] font-normal uppercase tracking-wider opacity-70">
-            score
-          </div>
-        </div>
+        <ScoreIndicator score={prospect.score} />
       </div>
 
-      {prospect.evidence.length > 0 ? (
-        <div className="border-t border-ink-800 bg-ink-950/40 px-4 py-3">
-          <div className="mb-2 text-[10px] uppercase tracking-widest text-ink-500">
-            Evidence
-          </div>
-          <ul className="space-y-1.5">
+      {/* Evidence */}
+      {prospect.evidence.length > 0 && (
+        <div className="border-t border-zinc-800/60 px-4 py-3 bg-zinc-900/30">
+          <div className="space-y-1.5">
             {prospect.evidence.map((e, i) => (
-              <li key={i} className="flex items-start gap-2 text-[13px]">
-                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-accent" />
+              <div key={i} className="flex items-start gap-2 text-[12px]">
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-zinc-600" />
                 <div className="min-w-0">
-                  <span className="text-ink-200">{e.detail}</span>
-                  {e.source?.url ? (
+                  <span className="text-zinc-400">{e.detail}</span>
+                  {e.source?.url && (
                     <a
                       href={e.source.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="ml-2 inline-flex items-center gap-0.5 text-[11px] text-accent hover:underline"
+                      className="ml-1.5 text-[11px] text-blue-400/80 hover:text-blue-400"
                     >
-                      {e.source.label}
-                      <ExternalLink className="h-3 w-3" />
+                      {e.source.label} ↗
                     </a>
-                  ) : e.source?.label ? (
-                    <span className="ml-2 text-[11px] text-ink-500">
-                      · {e.source.label}
-                    </span>
-                  ) : null}
+                  )}
                 </div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
-      ) : null}
+      )}
 
-      {prospect.email ? (
-        <div className="border-t border-ink-800 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-widest text-ink-500">
-              Suggested opener
+      {/* Email */}
+      {prospect.email && (
+        <div className="border-t border-zinc-800/60 px-4 py-2.5">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setExpanded(!expanded)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setExpanded(!expanded); }}
+            className="flex items-center justify-between cursor-pointer group"
+          >
+            <span className="text-[11px] text-zinc-500 group-hover:text-zinc-400 transition-colors">
+              AI-generated outreach
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); copyEmail(); }}
+                className={cn(
+                  "flex items-center gap-1 rounded px-2 py-0.5 text-[11px] transition-colors",
+                  copied
+                    ? "text-green-400 bg-green-400/10"
+                    : "text-zinc-500 hover:text-zinc-300 bg-zinc-800/50",
+                )}
+              >
+                {copied ? <><Check className="h-2.5 w-2.5" /> Copied</> : <><Copy className="h-2.5 w-2.5" /> Copy</>}
+              </button>
+              {expanded ? <ChevronUp className="h-3.5 w-3.5 text-zinc-600" /> : <ChevronDown className="h-3.5 w-3.5 text-zinc-600" />}
             </div>
-            <button
-              onClick={copyEmail}
-              className={cn(
-                "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors",
-                copied
-                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300"
-                  : "border-ink-700 bg-ink-900 text-ink-300 hover:border-accent/60 hover:text-ink-100",
-              )}
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3 w-3" /> Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3" /> Copy
-                </>
-              )}
-            </button>
           </div>
-          <div className="mt-2 rounded-md border border-ink-800 bg-ink-950/50 p-3">
-            <div className="text-[13px] font-medium text-ink-100">
-              {prospect.email.subject}
+
+          {expanded && (
+            <div className="mt-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-3 animate-slide-up">
+              <div className="text-[12px] font-medium text-zinc-300">
+                {prospect.email.subject}
+              </div>
+              <p className="mt-1.5 whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-500">
+                {prospect.email.body}
+              </p>
             </div>
-            <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed text-ink-300">
-              {prospect.email.body}
-            </p>
-          </div>
+          )}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
