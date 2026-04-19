@@ -20,39 +20,62 @@ function apiKey(): string {
   return key;
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey()}`,
-      "x-api-version": API_VERSION,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-
-  const text = await res.text();
-  if (!res.ok) {
-    let message = text;
+async function post<T>(path: string, body: unknown, retries = 1): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const parsed = JSON.parse(text);
-      message =
-        parsed?.error?.message ??
-        parsed?.description ??
-        parsed?.reason ??
-        parsed?.message ??
-        text;
-    } catch {}
-    throw new Error(
-      `Crustdata ${path} failed (${res.status}): ${message.slice(0, 500)}`,
-    );
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25_000);
+      const res = await fetch(`${BASE_URL}${path}`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${apiKey()}`,
+          "x-api-version": API_VERSION,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      const text = await res.text();
+      if (!res.ok) {
+        let message = text;
+        try {
+          const parsed = JSON.parse(text);
+          message =
+            parsed?.error?.message ??
+            parsed?.description ??
+            parsed?.reason ??
+            parsed?.message ??
+            text;
+        } catch {}
+        // Retry on transient 5xx/429
+        if ((res.status >= 500 || res.status === 429) && attempt < retries) {
+          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+          continue;
+        }
+        throw new Error(
+          `Crustdata ${path} failed (${res.status}): ${message.slice(0, 400)}`,
+        );
+      }
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new Error(`Crustdata ${path} returned non-JSON response`);
+      }
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+        continue;
+      }
+    }
   }
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(`Crustdata ${path} returned non-JSON response`);
-  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error(`Crustdata ${path} failed`);
 }
 
 export type CompanySearchRequest = {
