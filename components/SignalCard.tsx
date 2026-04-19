@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { Toast } from "@/components/Toast";
 import type { BuyingSignal } from "@/lib/signal-types";
 import { cn } from "@/lib/utils";
 
@@ -38,13 +39,18 @@ const SIGNAL_LABELS = {
 
 export function SignalCard({ signal }: { signal: BuyingSignal }) {
   const [copied, setCopied] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   async function copyEmail() {
     if (!signal.email) return;
     const text = `Subject: ${signal.email.subject}\n\n${signal.email.body}`;
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+    setShowToast(true);
+    setTimeout(() => {
+      setCopied(false);
+      setShowToast(false);
+    }, 2000);
   }
 
   const Icon = SIGNAL_ICONS[signal.type];
@@ -61,9 +67,10 @@ export function SignalCard({ signal }: { signal: BuyingSignal }) {
   return (
     <div
       className={cn(
-        "animate-in fade-in slide-in-from-top-4 duration-500",
-        "group relative overflow-hidden rounded-xl border border-ink-700 bg-gradient-to-br from-ink-900/60 to-ink-900/30 backdrop-blur-sm transition-all hover:border-ink-600 hover:shadow-xl hover:shadow-accent/5",
+        "animate-in fade-in slide-in-from-top-8 duration-500 fill-mode-both",
+        "group relative overflow-hidden rounded-xl border border-ink-700 bg-gradient-to-br from-ink-900/60 to-ink-900/30 backdrop-blur-sm transition-all hover:scale-[1.01] hover:border-ink-600 hover:shadow-xl hover:shadow-accent/5",
       )}
+      style={{ animationDelay: `${Math.min(signal.score / 20, 8) * 50}ms` }}
     >
       {/* Signal type badge - top left */}
       <div className="absolute left-4 top-4 z-10">
@@ -198,6 +205,8 @@ export function SignalCard({ signal }: { signal: BuyingSignal }) {
           </div>
         )}
       </div>
+
+      <Toast message="Email copied to clipboard!" show={showToast} />
     </div>
   );
 }

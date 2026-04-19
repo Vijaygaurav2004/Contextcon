@@ -221,20 +221,29 @@ function StatusPanel({
   running: boolean;
   signalCount: number;
 }) {
+  const isDone = status?.includes("Done —");
+  
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center gap-2 border-b border-ink-800 pb-2">
-        <Activity className="h-4 w-4 text-accent" />
+        <Activity className={cn("h-4 w-4", running ? "animate-pulse text-accent" : "text-accent")} />
         <span className="text-xs uppercase tracking-widest text-ink-400">
           Detection Status
         </span>
       </div>
 
       {status && (
-        <div className="text-sm text-ink-300">
+        <div className={cn("text-sm", isDone && signalCount > 0 ? "text-emerald-300" : "text-ink-300")}>
           {running ? (
             <div className="flex items-start gap-2">
               <div className="mt-1 h-2 w-2 animate-pulse rounded-full bg-accent" />
+              <span>{status}</span>
+            </div>
+          ) : isDone && signalCount > 0 ? (
+            <div className="flex items-start gap-2 animate-in fade-in slide-in-from-left-4 duration-500">
+              <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20">
+                <Activity className="h-3 w-3 text-emerald-400" />
+              </div>
               <span>{status}</span>
             </div>
           ) : (
@@ -244,7 +253,7 @@ function StatusPanel({
       )}
 
       {signalCount > 0 && (
-        <div className="mt-auto rounded-lg border border-accent/20 bg-accent/5 p-3">
+        <div className="mt-auto animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 rounded-lg border border-accent/20 bg-accent/5 p-3">
           <div className="text-2xl font-bold text-accent">{signalCount}</div>
           <div className="text-xs text-ink-400">
             Active signal{signalCount === 1 ? "" : "s"}
