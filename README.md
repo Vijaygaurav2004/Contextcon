@@ -62,6 +62,25 @@ User query
 
 Every API call streams into a live reasoning trace on the left. Results populate cards on the right with clickable source links and copy-to-clipboard emails.
 
+## Loom demo script (≤3 minutes)
+
+**Opening (15s):**
+> "SDR prospecting burns 60% of a rep's week on finding the right people. YC's Spring 2026 RFS calls for AI-Native Agencies. Meet Signal — describe your ideal prospects in English, get a sourced, personalized outreach list in under a minute."
+
+**Live run (90s):**
+1. Click the first killer-query chip ("10 VP Sales or CROs at Series A B2B SaaS companies in India…").
+2. Narrate the left rail as events stream in:
+   - *"The agent compiles the brief into Crustdata filter JSON — note ISO-3 country codes, the `=<` / `=>` operators, the funding-stage filter."*
+   - *"It queries `/company/search`, gets 40 accounts, then `/person/search` finds decision-makers."*
+   - *"Top 10 get enriched through `/person/enrich`, and the web is scanned for fresh signals on each."*
+3. Hover over a 99-score card and read the personalized opener aloud: *"This is grounded in a real article the agent pulled from the web 10 seconds ago."*
+
+**The moat (30s):**
+> "Three layers of moat: Crustdata's API suite is the only way to do this at this quality; the compiler prompt + fallback logic is Signal's IP; the agent trace is product — not infrastructure."
+
+**Close (15s):**
+> "AI-Native Agencies that automate sales research. This is the wedge. Thanks to Crustdata, Y Combinator, and ContextCon."
+
 ## Team
 
 Built in 5 hours at ContextCon, Bengaluru, April 19 2026.

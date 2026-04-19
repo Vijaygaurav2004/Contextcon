@@ -82,7 +82,7 @@ Rules:
 - Sentence 2: why the sender is reaching out, tied to the prospect's likely current priority.
 - Sentence 3: a low-friction ask. A 15-min call or a one-line reply.
 - Do NOT fabricate facts. If evidence is thin, keep the opener grounded in their role + company.
-- Sign off as "— Gaurav".
+- MANDATORY: The body MUST end with a new line followed by "— Gaurav" exactly. No other sign-off.
 - Return ONLY strict JSON: {"subject": "...", "body": "..."}. No markdown.`;
 
 export function emailWriterUser({
