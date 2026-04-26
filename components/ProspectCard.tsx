@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, ExternalLink, MapPin, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, Copy, ExternalLink, MapPin, ChevronDown, ChevronUp, Send } from "lucide-react";
 import { useState } from "react";
 
 import type { Prospect } from "@/lib/types";
@@ -41,10 +41,21 @@ export function ProspectCard({ prospect }: { prospect: Prospect }) {
 
   async function copyEmail() {
     if (!prospect.email) return;
-    const text = `Subject: ${prospect.email.subject}\n\n${prospect.email.body}`;
+    const text = prospect.email.body; // Removed subject
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
+  }
+
+  async function sendViaLinkedIn(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!prospect.email) return;
+    await navigator.clipboard.writeText(prospect.email.body);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+    if (prospect.profileUrl) {
+      window.open(prospect.profileUrl, "_blank");
+    }
   }
 
   return (
@@ -137,6 +148,18 @@ export function ProspectCard({ prospect }: { prospect: Prospect }) {
             </span>
             <div className="flex items-center gap-1.5">
               <button
+                onClick={sendViaLinkedIn}
+                disabled={!prospect.profileUrl}
+                className={cn(
+                  "flex items-center gap-1 rounded px-2 py-0.5 text-[11px] transition-colors",
+                  copied
+                    ? "text-green-400 bg-green-400/10"
+                    : "text-zinc-200 hover:text-white bg-blue-600/80 hover:bg-blue-500/90 disabled:opacity-50 disabled:cursor-not-allowed",
+                )}
+              >
+                <Send className="h-2.5 w-2.5" /> Send in LinkedIn
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); copyEmail(); }}
                 className={cn(
                   "flex items-center gap-1 rounded px-2 py-0.5 text-[11px] transition-colors",
@@ -153,10 +176,7 @@ export function ProspectCard({ prospect }: { prospect: Prospect }) {
 
           {expanded && (
             <div className="mt-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-3 animate-slide-up">
-              <div className="text-[12px] font-medium text-zinc-300">
-                {prospect.email.subject}
-              </div>
-              <p className="mt-1.5 whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-500">
+              <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-zinc-300">
                 {prospect.email.body}
               </p>
             </div>

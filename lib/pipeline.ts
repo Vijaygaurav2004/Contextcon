@@ -485,9 +485,9 @@ export async function* runPipeline(userQuery: string): AsyncGenerator<PipelineEv
         schema: emailSchema,
         temperature: 0.6,
       });
-      const body = object.body.trim().endsWith("— Gaurav")
+      const body = object.body.trim().endsWith("— Deepak")
         ? object.body.trim()
-        : `${object.body.trim()}\n\n— Gaurav`;
+        : `${object.body.trim()}\n\n— Deepak`;
       email = { subject: object.subject, body };
     } catch {
       email = undefined;
