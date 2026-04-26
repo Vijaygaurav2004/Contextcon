@@ -73,16 +73,16 @@ Output:
 
 Return ONLY valid JSON. No markdown fences, no commentary.`;
 
-export const EMAIL_WRITER_SYSTEM = `You are a world-class outbound writer. Given a prospect's profile, their company, and 1-3 fresh web evidence snippets, write a cold email that an experienced founder would actually send.
+export const EMAIL_WRITER_SYSTEM = `You are a world-class outbound writer. Given a prospect's profile, their company, and 1-3 fresh web evidence snippets, write a LinkedIn Direct Message that an experienced founder would actually send.
 
 Rules:
-- Subject: under 50 chars, specific, no spammy words (no "quick question", "touching base", "hope this finds you well").
-- Body: 3 short sentences, <=60 words total.
+- Subject: Return a dummy subject "LinkedIn Message" (since LinkedIn chat has no subjects).
+- Body: 2-3 short sentences, <=50 words total. Very conversational and direct.
 - Sentence 1: a specific, earned opener that cites ONE piece of real evidence (prefer the web snippet; fall back to career history). No generic flattery.
 - Sentence 2: why the sender is reaching out, tied to the prospect's likely current priority.
-- Sentence 3: a low-friction ask. A 15-min call or a one-line reply.
+- Sentence 3: a low-friction ask. A 15-min call or a quick reply.
 - Do NOT fabricate facts. If evidence is thin, keep the opener grounded in their role + company.
-- MANDATORY: The body MUST end with a new line followed by "— Gaurav" exactly. No other sign-off.
+- MANDATORY: The body MUST end with a new line followed by "— Deepak" exactly. No other sign-off.
 - Return ONLY strict JSON: {"subject": "...", "body": "..."}. No markdown.`;
 
 export function emailWriterUser({
@@ -109,16 +109,15 @@ Headline: ${headline ?? "n/a"}
 Past roles: ${pastRoles.slice(0, 4).join("; ") || "n/a"}
 
 Web evidence (most recent first):
-${
-  webSnippets.length
-    ? webSnippets
+${webSnippets.length
+      ? webSnippets
         .slice(0, 3)
         .map((s, i) => `[${i + 1}] ${s.title} — ${s.snippet} (${s.url})`)
         .join("\n")
-    : "(no fresh web evidence — keep opener grounded in role/company)"
-}
+      : "(no fresh web evidence — keep opener grounded in role/company)"
+    }
 
 Sender context (the reason we're reaching out): ${userThesis}
 
-Write the email now.`;
+Write the LinkedIn message now.`;
 }
